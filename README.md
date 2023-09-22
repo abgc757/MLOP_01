@@ -122,3 +122,6 @@ Se identifican los 10 desarroladores con más ventas
 ### deploy
 visita el deploy en 
 https://https-6cp6.onrender.com/
+
+Video Youtube
+https://youtu.be/tnmoQ9l_NzI
