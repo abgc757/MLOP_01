@@ -1,124 +1,134 @@
 import pandas as pd
-from fastapi import FastAPI
 import json
-import csv
 import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-
+from fastapi import FastAPI
 
 app = FastAPI()
 
-# Cargar DataFrames
-'''
-reviews  = pd.read_parquet('dataset/australian_user_reviews.parquet')
-items =  pd.read_parquet('dataset/australian_users_items.parquet')
+#Función Similitud de coseno
+def similarityCosine(vector1, vector2):
+    norm1 = np.linalg.norm(vector1)
+    norm2 = np.linalg.norm(vector2)
+    if norm1 == 0 or norm2 == 0:
+        return 0 
+    else:
+        return np.dot(vector1, vector2) / (norm1 * norm2)
+    
+# Función normalizacion de generos
+def get_genre(genre_input: str):
+    # Lista de géneros
+    genres = ["Action", "Indie", "Adventure", "RPG", "Strategy", "Free to Play", 
+              "Simulation", "Casual", "Massively Multiplayer", "Early Access", 
+              "Sports", "Racing", "Utilities", "Design & Illustration", 
+              "Animation & Modeling", "Video Production", "Web Publishing", 
+              "Education", "Software Training", "Audio Production", "Photo Editing"]
 
-ranking_genre = pd.read_parquet('dataset/ranking_genre.parquet')
-usersXgenre = pd.read_parquet('dataset/user_genre.parquet')
-'''
+    # Convierte el género de entrada y los géneros de la lista a minúsculas para la comparación
+    genre_input_lower = genre_input.lower()
+    genres_lower = [genre.lower() for genre in genres]
+
+    # Comprueba si el género de entrada está en la lista de géneros
+    if genre_input_lower in genres_lower:
+        # Si está en la lista, devuelve el género tal cual aparece en la lista original
+        return genres[genres_lower.index(genre_input_lower)]
+    else:
+        return None
+
 
 @app.get("/")
 def index():
     return {'Mensaje': 'Sistema de recomendacion'}
 
-@app.get("/UserData/{User_id}")
-def userdata(User_id:str):
-    reviews  = pd.read_parquet('dataset/australian_user_reviews.parquet')
-    games =  pd.read_parquet('dataset/output_steam_games.parquet')
-    Consumo = 0
-    user_data = reviews[reviews['user_id'] == User_id]
-    item_count = user_data['user_id'].count()
-    for i in user_data['item_id']:
-        filtro = games[games['id'] == i]
-        precio = filtro.iloc[0]['price'] - filtro.iloc[0]['discount_price']
-        Consumo = Consumo + precio
-    recomemdaciones = reviews[reviews['user_id'] == User_id]
-    cierto = recomemdaciones[recomemdaciones['recommend'] == True].count()
-    porcentaje = cierto[0]  / item_count
-    resultado =  {"Consumo del usuario": float(Consumo), "% de recomendación": round(float(porcentaje) * 100,2), "Cantidad de items": int(item_count)}
-    del reviews
-    del games
-    return resultado
-
-@app.get("/countreviews/{fecha1},{fecha2}")
-def countreviews(fecha1:str,fecha2:str):
-    reviews  = pd.read_parquet('dataset/australian_user_reviews.parquet')
-    if fecha1 > fecha2:
-        return {"Error":"Ingrese correctamente las fechas"}
+@app.get("/PlayTimeGenre/{genero}")
+def PlayTimeGenre(genero : str):
+    genero = get_genre(genero)
+    if genero == None:
+        return {"Error": "El género no existe"}
     else:
-        filtro = reviews[(reviews['posted_date'] >= fecha1) & (reviews['posted_date'] <= fecha2) ]
-        cierto = filtro[filtro['recommend'] == True].count()
-        Tot_rev = filtro['recommend'].count()
-        porcentaje = cierto['recommend'] / Tot_rev
-    resultado = {'Cantidad de Reviews': int(filtro['recommend'].count()), '% de recomendaciones': round(float(porcentaje),2) * 100}
-    del reviews
-    return resultado
+        ranking_genre = pd.read_parquet('dataset/ranking_genre.parquet')
+        filtro = ranking_genre[ranking_genre['genres'] == genero]
+        del ranking_genre
+        return {f"Año de lanzamiento con más horas jugadas para Género {genero}" : int(filtro['year'].iloc[0])}
 
+@app.get("/UserForGenre/{genero}")
+def UserForGenre(genero : str):
+    genero = get_genre(genero)
+    if genero == None:
+        return {"Error": "El género no existe"}
+    else:
+        usersXgenre = pd.read_parquet('dataset/user_genre.parquet')
+        filtro = usersXgenre[usersXgenre['genres'] == genero]
+        filtro_usuario = filtro.groupby('user_id')['playtime_forever'].sum().sort_values(ascending=False)
+        resultado = filtro[filtro['user_id'] == filtro_usuario.index[0]].sort_values('year', ascending=False)
+        i = 0
+        lista = []
+        while i < len(resultado):
+            lista.append({f"Año:{int(resultado['year'].iloc[i])}, Horas:{int(resultado['playtime_forever'].iloc[i])}"})
+            i += 1
+        del usersXgenre
+        return {f"Usuario con más horas jugadas para Género {resultado['genres'].iloc[0]}: {resultado['user_id'].iloc[0]},{lista}"}
 
-@app.get("/genre/{genero}")
-def genre(genero:str):
-    ranking_genre = pd.read_parquet('dataset/ranking_genre.parquet')
-    resultado = {"Puesto numero:": int(ranking_genre[ranking_genre['genres'] == genero].index[0] + 1) }
-    del ranking_genre
-    return resultado
+@app.get("/UsersRecommend/{anio}")
+def UsersRecommend(anio : int):
+    recommend = pd.read_parquet('dataset/recommend.parquet')
+    filtro = recommend[recommend['year'] == anio].sort_values(by=['count'], ascending=False).head(3)
+    # del recommend
+    if len(filtro) == 0:
+        return {f"No hay juegos recomendados para el año {anio}"}
+    else:
+        i = 0
+        lista = []
+        while i < len(filtro):
+            lista.append({f"Puesto {i+1}" : filtro['title'].iloc[i]})
+            i += 1
+        return lista
 
-@app.get("/userforgenre/{genero}")
-def userforgenre(genero:str):
-    usersXgenre = pd.read_parquet('dataset/user_genre.parquet')
-    filtro = usersXgenre[usersXgenre['genres'] == genero].sort_values(by='playtime_forever', ascending=False).head(5)
-    lista = []
-    j = 0
-    for i in filtro['user_id_y']:
-        filtro2 = filtro[filtro['user_id_y'] == i]
-        res = {"Posicion": int(j + 1), "Usuario_Id":str(i),"Url_Usuario":str(filtro2['user_url'].iloc[0])}
-        lista.append(res)
-        j = j + 1
-    del usersXgenre
-    return lista
-
-@app.get("/developer/{desarrollador}")
-def developer(desarrollador:str):
-    games =  pd.read_parquet('dataset/output_steam_games.parquet')
-    filtro = games[games['developer'] == desarrollador].dropna(subset=['release_date'])
-    filtro = filtro[filtro['release_date'].str.match(r'\d{4}-\d{2}-\d{2}', na=False)]
-    filtro['release_date'] = pd.to_datetime(filtro['release_date'], format="%Y-%m-%d")
-    filtro_free = filtro[filtro['price'] == 0]
-    total = filtro.groupby(filtro['release_date'].dt.year)['price'].count()
-    free = filtro_free.groupby(filtro_free['release_date'].dt.year)['price'].count()
-    resultado = pd.DataFrame({'free': total, 'total': free})
-    resultado = resultado.fillna(0)
-    resultado['free'] = resultado['free'].astype(int)
-    resultado['total'] = resultado['total'].astype(int)
-    lista = []
+@app.get("/UsersNotRecommend/{anio}")
+def UsersNotRecommend( anio : int ):
+    notrecommend = pd.read_parquet('dataset/notrecommend.parquet')
+    filtro = notrecommend[notrecommend['year'] == anio].sort_values(by=['year'], ascending=False).head(3)
+    del notrecommend
+    if len(filtro) == 0:
+        return {f"No hay registros de juegos con peores recomendaciones para el año {anio}"}
+    else:
+        lista = []
+        for i in range(0,3):
+            lista.append({f"Puesto {i+1}" : filtro['title'].iloc[i]})
+        return lista
     
-    for i in range(len(resultado)):
-        a = resultado['free'].iloc[i]
-        b = resultado['total'].iloc[i]
-        if b == 0:
-            porcentaje = None
-        else:
-            try:
-                porcentaje = round(b * 100 / a, 2)
-            except ZeroDivisionError:
-                porcentaje = 0.0  # O cualquier otro valor predeterminado
-            
-        res = {"Año": int(resultado.index[i]), "Contenido free": int(a), "% free": porcentaje}
-        lista.append(res)
-    
-    # Limpieza de variables intermedias
-    del games
-    del filtro
-    del filtro_free
-    return lista
-
 @app.get("/sentiment_analysis/{anio}")
-def sentiment_analysis(anio:int):
-    sentiments  = pd.read_parquet('dataset/sentiments.parquet')
+def sentiment_analysis( anio : int ):
+    sentiments  = pd.read_parquet('dataset\sentiments.parquet')
     filtro = sentiments[sentiments['release_date'].dt.year == anio]
     filtro['sentiment_analysis'] = filtro['sentiment_analysis'].astype(int)
     filtro['release_date'] = filtro['release_date'].astype('int64').astype('int32')
     resumen = filtro.groupby(filtro['sentiment_analysis'])['release_date'].count().to_dict()
-    resultado = {"Negative=": resumen.get(0, 0), "Neutral=": resumen.get(1, 0), "Positive=": resumen.get(2, 0)}
+    resultado = f"Negative={resumen.get(0, 0)}, Neutral={resumen.get(1, 0)}, Positive={resumen.get(2, 0)}"
     del sentiments
-    return resultado
+    return {resultado}
+
+@app.get("/recomendacion_juego/{id}")
+def recomendacion_juego(id : int):
+    reviews  = pd.read_parquet('dataset/reviews_per_item.parquet')
+    filtro = reviews[reviews['id'] == id]
+    try:
+        fila1 = filtro.iloc[0]
+    except IndexError:
+        return {"error": "No se encontraron datos para el ID del juego dado."}   
+    fila1 = filtro.iloc[0]
+    lista = []
+    i = 0
+    while i < len(reviews):
+        fila2 = reviews.iloc[i]
+        lista.append(similarityCosine(fila1,fila2))
+        i += 1
+    reviews['similarity_cosine'] = lista
+    recomendacion =reviews[['id','similarity_cosine']].sort_values(by=['similarity_cosine'], ascending=False).head(10)
+    del reviews
+    rec = []
+    j = 0
+    while j < 6:
+        if recomendacion['id'].iloc[j] != id:
+            rec.append(recomendacion['id'].iloc[j])
+        j+=1
+    return {f"Los juegos recomendados para {id} son: {rec}"}
