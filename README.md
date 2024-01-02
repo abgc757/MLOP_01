@@ -225,7 +225,7 @@ Se procesaron los datos y se identificaron aquellos juegop que mas jugaron los u
 
 ![Top 10 Videojuegos](/images/top_ten.png)
 
-### Videojuegio más jugado entre el 2010 al 2013
+### Videojuego más jugado entre el 2010 al 2013
 
 Se determina cúal es el videojuego mas demandado por año
 ![Mejor Videojuego](/images/top_videogame.png)
@@ -235,15 +235,15 @@ La mayoria de los videojuegos se encuentran en un esquema free to play o de uso 
 
 ![Densidad de precios](/images/densidad_precios.png)
 
-Dado lo anterior seria error considerar unicamnte la data comprendida por el rango intercuartil, por ello se muestra la distribución de precios en escala logaritmica
+Dado lo anterior seria error considerar unicamente la data comprendida por el rango intercuartil, por ello se muestra la distribución de precios en escala logaritmica
 
 ![Precios de videojuegos](/images/Precios.png)
 
 ### Deploy
-Para realizar un deploy del proyecto se utilizó [render.com/](https://render.com/) como plataforma. visite el deploy en 
+Para realizar un deploy del proyecto se utilizó [render.com/](https://render.com/) como plataforma. Puede probar el deploy en 
 https://https-6cp6.onrender.com/
 
 ### Video del proyecto
-Consulte el video del proyecto desde [Youtube](https://youtu.be/tnmoQ9l_NzI)
+Consulte el video del proyecto desde [Youtube](https://youtu.be/-XHZDQSwNH4)
 
-https://youtu.be/tnmoQ9l_NzI
+https://youtu.be/-XHZDQSwNH4
